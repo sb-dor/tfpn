@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Accent for notifications: tints the small icon and app name in the
+         shade. Keep in sync with LocalNotifications.accentColor in Dart. -->
+    <color name="notification_color">#5E35B1</color>
+</resources>

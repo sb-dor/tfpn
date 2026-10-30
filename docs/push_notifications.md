@@ -67,6 +67,75 @@ python3 tool/push/ios_sim_push.py --title "Order shipped" --data route=/orders/7
 
 To test the fully-closed state: on Android, swipe the app away in Recents (do not use Force stop, which blocks pushes until the app is opened again). On iOS, swipe it away or run `xcrun simctl terminate booted com.example.tfpn`. Then send and tap the notification.
 
+## App and notification icons
+
+### App icon (Android, iOS, macOS)
+
+Source images are in `assets/icon/`, all 1024×1024 PNG. `flutter_launcher_icons.yaml` maps them to each platform.
+
+| File | Used for | Rules |
+|---|---|---|
+| `app_icon.png` | iOS, macOS, Android before 8.0 | Full square, no transparency. iOS rounds the corners itself, so don't round them |
+| `app_icon_background.png` | Android adaptive icon background | Full square. A plain colour or gradient works best |
+| `app_icon_foreground.png` | Android adaptive icon foreground | Transparent background. The generator shrinks it by 16% on each side, so draw the artwork about 1.5× the size you want it to end up |
+| `app_icon_monochrome.png` | Android 13+ themed icon | White shape on transparent. The system recolours it |
+| `app_icon_ios_dark.png` | iOS 18+ dark icon | Transparent background. iOS adds the dark backdrop |
+| `app_icon_ios_tinted.png` | iOS 18+ tinted icon | White shape on transparent |
+
+To change the app icon:
+
+1. Replace the PNGs, keeping the same names. At minimum replace `app_icon.png`; delete the other `adaptive_icon_*`/`image_path_ios_*` lines from the yaml if you don't have those layers.
+2. Regenerate:
+   ```bash
+   dart run flutter_launcher_icons
+   ```
+3. The generator (v0.14.4) wrongly rewrites one unrelated Xcode setting. Put it back:
+   ```bash
+   sed -i '' 's/ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = AppIcon;/ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;/' ios/Runner.xcodeproj/project.pbxproj
+   ```
+4. Rebuild and reinstall the app.
+
+### Android notification icon
+
+Android shows its own small icon in the status bar and the notification shade, separate from the app icon. The system ignores every colour in it and draws it as a single-colour silhouette, so a full-colour app icon becomes a solid white blob.
+
+- **File:** `android/app/src/main/res/drawable/ic_notification.xml` (a vector).
+- **Used by:**
+  - notifications Android draws itself (via `default_notification_icon` in `AndroidManifest.xml`)
+  - notifications the app draws (via `LocalNotifications._androidIcon` in `lib/notifications/local_notifications.dart`)
+- **Accent colour:** tints the icon circle and app name in the shade. It's set in two places that must match:
+  - `notification_color` in `android/app/src/main/res/values/colors.xml`
+  - `LocalNotifications.accentColor` in Dart
+
+Rules for the icon:
+- white (`#FFFFFFFF`) shapes on transparent, nothing else
+- 24×24 dp, keeping roughly 1 dp of padding
+- simple, bold shapes with no thin lines or text; it shows at about 24 px
+
+To replace it:
+
+1. Get a white-on-transparent SVG of your glyph.
+2. In Android Studio: right-click `res` → **New → Vector Asset** → Local file → pick the SVG.
+3. Name it `ic_notification` so you overwrite the current file. Nothing else needs to change.
+4. Alternatively, use **New → Image Asset → Notification Icons**, which generates PNGs into `drawable-*dpi/`. Delete `drawable/ic_notification.xml` so the two don't clash.
+5. Uninstall the app and reinstall it. The launcher and notification shade cache icons.
+
+A backend can also choose the icon and colour for a single message, as long as that icon file is bundled in the app's `res/drawable/`:
+
+```json
+"android": { "notification": { "icon": "ic_notification", "color": "#5E35B1" } }
+```
+
+### iOS notification icon
+
+iOS has no separate notification icon: banners, the lock screen and Notification Center always show the app icon (its 20 pt size). To change it, change the app icon as described above.
+
+- **Old icon still showing after an icon change:** iOS caches icons. On a device, delete the app and reinstall it. On the simulator, reinstalling isn't enough; reboot it:
+  ```bash
+  xcrun simctl shutdown booted && xcrun simctl boot <device-udid>
+  ```
+- **A different picture per message** (for example a sender's photo): this isn't possible with plain notification settings. It needs either a Notification Service Extension (for an image attached to the notification) or Communication Notifications (for a sender avatar). Both are separate iOS app targets.
+
 ## One-time setup outside the code
 
 - **iOS:** upload an APNs auth key (`.p8`) in Firebase console → Project settings → Cloud Messaging. In Xcode, pick a signing team for Runner. Push Notifications and Background Modes are already set through `Runner.entitlements` and `Info.plist`. Test on a real device or on an Apple-silicon simulator.

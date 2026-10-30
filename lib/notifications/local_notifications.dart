@@ -1,3 +1,5 @@
+import 'dart:ui' show Color;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
@@ -17,7 +19,10 @@ class LocalNotifications {
     importance: Importance.high,
   );
 
+  /// Small icon (android/app/src/main/res/drawable/ic_notification.xml) and
+  /// accent colour; keep in sync with `notification_color` in colors.xml.
   static const _androidIcon = '@drawable/ic_notification';
+  static const accentColor = Color(0xFF5E35B1);
 
   static final plugin = FlutterLocalNotificationsPlugin();
   static bool _initialized = false;
@@ -66,6 +71,7 @@ class LocalNotifications {
           importance: Importance.high,
           priority: Priority.high,
           icon: _androidIcon,
+          color: accentColor,
           styleInformation: BigTextStyleInformation(message.body ?? ''),
         ),
         iOS: const DarwinNotificationDetails(

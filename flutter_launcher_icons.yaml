@@ -1,0 +1,24 @@
+# App icon for every platform. After changing an image, regenerate with:
+#   dart run flutter_launcher_icons
+# See docs/push_notifications.md ("App and notification icons").
+flutter_launcher_icons:
+  image_path: assets/icon/app_icon.png
+
+  android: true
+  min_sdk_android: 24
+  # Foreground/monochrome glyphs are drawn large because the generator
+  # insets them by 16% to fit the adaptive icon safe zone.
+  adaptive_icon_foreground: assets/icon/app_icon_foreground.png
+  adaptive_icon_background: assets/icon/app_icon_background.png
+  # Android 13+ themed icons (system tints it to match the wallpaper).
+  adaptive_icon_monochrome: assets/icon/app_icon_monochrome.png
+
+  ios: true
+  remove_alpha_ios: true
+  # iOS 18+ dark and tinted home screen styles.
+  image_path_ios_dark_transparent: assets/icon/app_icon_ios_dark.png
+  image_path_ios_tinted_grayscale: assets/icon/app_icon_ios_tinted.png
+  desaturate_tinted_to_grayscale_ios: true
+
+  macos:
+    generate: true

@@ -2,4 +2,4 @@
 <!-- The notification icon is only referenced by name at runtime, so stop
      release resource shrinking from removing it. -->
 <resources xmlns:tools="http://schemas.android.com/tools"
-    tools:keep="@drawable/ic_notification" />
+    tools:keep="@drawable/ic_notification,@color/notification_color" />
