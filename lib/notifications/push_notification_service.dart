@@ -94,6 +94,7 @@ class PushNotificationService {
     final launchPush =
         initial != null ? PushMessage.fromRemoteMessage(initial) : await LocalNotifications.launchMessage();
     if (launchPush != null) {
+      debugPrint('[push] launched by tap: $launchPush');
       _launchEvent = _record(launchPush, PushEventSource.launched);
     }
 
@@ -137,6 +138,8 @@ class PushNotificationService {
   }
 
   void _onToken(String? value) {
+    // getToken() and onTokenRefresh both report the first token on startup.
+    if (value == null || value == token.value) return;
     token.value = value;
     debugPrint('[push] FCM token: $value');
     // TODO: send the token to your backend (Laravel/Go) so it can target this device.
