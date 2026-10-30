@@ -44,6 +44,29 @@ All `data` values must be strings.
 
 iOS limits for data-only messages: iOS throttles silent pushes and does not deliver them at all after the user force-quits the app from the app switcher. If a message has to show up reliably on iOS, send a `notification` message.
 
+## Test from the command line
+
+Scripts live in `tool/push/` (Python 3 standard library only). Launch the app once first so it logs its token.
+
+```bash
+# 1. Get the device token the app logged
+tool/push/get_token.sh android
+tool/push/get_token.sh ios
+
+# 2. Send through FCM (Android, or iOS once the APNs key is uploaded)
+python3 tool/push/send_push.py --token "$(tool/push/get_token.sh android)"
+python3 tool/push/send_push.py --token "$(tool/push/get_token.sh android)" --type data --data route=/chat/3
+python3 tool/push/send_push.py --topic all --title "Hello everyone"
+python3 tool/push/send_push.py --token <token> --dry-run   # FCM validates, nothing is delivered
+
+# 3. iOS Simulator without Firebase/APNs (notification pushes only)
+python3 tool/push/ios_sim_push.py --title "Order shipped" --data route=/orders/7
+```
+
+`send_push.py` signs in with your Firebase CLI login. Pass `--service-account path/to/key.json` to sign in the way a backend does instead. It prints the exact JSON it sends, which your backend can copy.
+
+To test the fully-closed state: on Android, swipe the app away in Recents (do not use Force stop, which blocks pushes until the app is opened again). On iOS, swipe it away or run `xcrun simctl terminate booted com.example.tfpn`. Then send and tap the notification.
+
 ## One-time setup outside the code
 
 - **iOS:** upload an APNs auth key (`.p8`) in Firebase console → Project settings → Cloud Messaging. In Xcode, pick a signing team for Runner. Push Notifications and Background Modes are already set through `Runner.entitlements` and `Info.plist`. Test on a real device or on an Apple-silicon simulator.
