@@ -32,6 +32,8 @@ CHANNEL_ID = "high_importance_channel"  # see lib/notifications/local_notificati
 
 def main():
     args = parse_args()
+    if args.token is not None and not args.token.strip():
+        sys.exit("--token is empty. Copy it from the app screen, or relaunch the app and run get_token.sh again.")
     sa = load_service_account(args.service_account)
     project = args.project or (sa or {}).get("project_id") or project_from_firebase_json()
     if not project:
