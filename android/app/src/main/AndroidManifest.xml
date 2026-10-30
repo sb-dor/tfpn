@@ -26,11 +26,11 @@
             </intent-filter>
         </activity>
         <!-- FCM: notifications drawn by the OS (app in background/terminated)
-             use this channel, icon and accent colour. The channel is created in
+             use this channel (custom chime sound), icon and accent colour. The channel is created in
              lib/notifications/local_notifications.dart. -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="high_importance_channel" />
+            android:value="chime_channel" />
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@drawable/ic_notification" />

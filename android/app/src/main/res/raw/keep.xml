@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The notification icon is only referenced by name at runtime, so stop
-     release resource shrinking from removing it. -->
+<!-- The notification icon and sound are only referenced by name at
+     runtime, so stop release resource shrinking from removing them. -->
 <resources xmlns:tools="http://schemas.android.com/tools"
-    tools:keep="@drawable/ic_notification,@color/notification_color" />
+    tools:keep="@drawable/ic_notification,@color/notification_color,@raw/chime" />

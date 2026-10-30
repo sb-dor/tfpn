@@ -10,7 +10,9 @@ Auth, pick one:
 
 Examples:
   python3 tool/push/send_push.py --token <FCM token>
-  python3 tool/push/send_push.py --token <FCM token> --type data --data route=/chat/3
+  python3 tool/push/send_push.py --token <FCM token> --data route=/orders/42
+  python3 tool/push/send_push.py --token <FCM token> --type data --data screen=chat id=9
+  python3 tool/push/send_push.py --token <FCM token> --sound default
   python3 tool/push/send_push.py --topic all --title "Hello everyone"
   python3 tool/push/send_push.py --token <FCM token> --dry-run
 """
@@ -27,7 +29,9 @@ import urllib.parse
 import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-CHANNEL_ID = "high_importance_channel"  # see lib/notifications/local_notifications.dart
+# Android channels and sound file, see lib/notifications/local_notifications.dart
+CHANNELS = {"chime": "chime_channel", "default": "high_importance_channel"}
+APNS_SOUNDS = {"chime": "chime.wav", "default": "default"}
 
 
 def main():
@@ -73,7 +77,10 @@ def parse_args():
                    help="notification = like the Firebase console; data = data-only, like many backends")
     p.add_argument("--title", default="Test push")
     p.add_argument("--body", default=None)
-    p.add_argument("--data", nargs="*", default=[], metavar="KEY=VALUE", help="extra data, e.g. route=/orders/7")
+    p.add_argument("--data", nargs="*", default=[], metavar="KEY=VALUE",
+                   help="extra data, e.g. route=/orders/42, or screen=chat id=9 to open a screen on tap")
+    p.add_argument("--sound", choices=["chime", "default"], default="chime",
+                   help="chime = the app's custom sound (default); default = the phone's system sound")
     p.add_argument("--project", help="Firebase project id (default: from firebase.json or the key)")
     p.add_argument("--service-account", default=os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"),
                    help="Firebase Admin service-account JSON")
@@ -93,10 +100,12 @@ def build_message(args):
     message = {"token": args.token} if args.token else {"topic": args.topic}
     if args.type == "notification":
         message["notification"] = {"title": args.title, "body": body}
-        message["android"] = {"notification": {"channel_id": CHANNEL_ID}}
+        # Android 8+ plays the channel's sound; iOS plays aps.sound (no sound if omitted).
+        message["android"] = {"notification": {"channel_id": CHANNELS[args.sound]}}
+        message["apns"] = {"payload": {"aps": {"sound": APNS_SOUNDS[args.sound]}}}
     else:
-        # Title/body travel inside data; the app builds the notification itself.
-        data = {"title": args.title, "body": body, **data}
+        # Title/body/sound travel inside data; the app builds the notification itself.
+        data = {"title": args.title, "body": body, "sound": args.sound, **data}
         message["android"] = {"priority": "high"}
         message["apns"] = {
             "headers": {"apns-push-type": "background", "apns-priority": "5"},

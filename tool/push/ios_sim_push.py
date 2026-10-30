@@ -11,7 +11,8 @@ send_push.py once the APNs key is set up.
 
 Examples:
   python3 tool/push/ios_sim_push.py
-  python3 tool/push/ios_sim_push.py --title "Order shipped" --data route=/orders/7
+  python3 tool/push/ios_sim_push.py --title "Order shipped" --data route=/orders/42
+  python3 tool/push/ios_sim_push.py --data screen=chat id=9 --sound default
   python3 tool/push/ios_sim_push.py --device "iPhone 17"
 """
 import argparse
@@ -28,13 +29,16 @@ def main():
     p.add_argument("--bundle", default="com.example.tfpn")
     p.add_argument("--title", default="Test push")
     p.add_argument("--body", default=None)
-    p.add_argument("--data", nargs="*", default=[], metavar="KEY=VALUE", help="extra data, e.g. route=/orders/7")
+    p.add_argument("--data", nargs="*", default=[], metavar="KEY=VALUE",
+                   help="extra data, e.g. route=/orders/42, or screen=chat id=9 to open a screen on tap")
+    p.add_argument("--sound", choices=["chime", "default"], default="chime",
+                   help="chime = the app's custom sound (default); default = the system sound")
     args = p.parse_args()
 
     payload = {
         "aps": {
             "alert": {"title": args.title, "body": args.body or f"sent at {time.strftime('%H:%M:%S')}"},
-            "sound": "default",
+            "sound": "chime.wav" if args.sound == "chime" else "default",
             "mutable-content": 1,
         },
         "gcm.message_id": str(int(time.time() * 1000)),

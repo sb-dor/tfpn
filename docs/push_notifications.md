@@ -9,20 +9,73 @@ Code: `lib/notifications/`. The app logs the FCM token on startup (`[push] FCM t
 | `notification` (+ optional `data`): Firebase console, or a backend that sends it | Android: app shows a local notification. iOS: OS banner | OS shows it | OS shows it |
 | `data` only: typical backend | App shows a local notification | Background handler shows a local notification | Same as background (Android needs high priority; iOS needs `content-available`) |
 
-Tapping any of them opens `PushDetailsPage` (see `_openDetails` in `lib/main.dart`). Swap that out for real routing using `message.route`, which is read from the `route` / `screen` / `deeplink` / `link` / `url` data keys.
+Tapping any of them opens the screen named in the payload (see "Open a screen on tap" below), in every app state.
 
 For data-only messages the app reads the title from `title` / `notification_title` / `headline` / `subject` and the body from `body` / `message` / `notification_body` / `text` / `content`. A JSON string under `payload`, `data`, `notification`, `extra` or `custom` is unpacked first.
 
+## Open a screen on tap
+
+Put the target screen in the message's `data`. Any one of these forms works:
+
+| `data` | Opens |
+|---|---|
+| `"route": "/orders/42"` | `OrderScreen` for order 42 |
+| `"screen": "order", "id": "42"` (or `"type"` instead of `"screen"`) | the same |
+| `"deeplink": "myapp://orders/42"` or `"link": "https://example.com/orders/42"` | the same |
+| `"route": "/chat/9"` or `"screen": "chat", "id": "9"` | `ChatScreen` for chat 9 |
+| anything else, or nothing | `PushDetailsPage`, which shows the raw payload |
+
+How it works:
+- `PushMessage.route` (in `lib/notifications/push_message.dart`) turns the payload into a path such as `/orders/42`.
+- `routeForPush` (in `lib/notifications/push_routes.dart`) maps that path to a screen.
+
+The same code runs whether the tap happened with the app open, in the background, or fully closed.
+
+To add a screen:
+1. Create the screen widget in `lib/screens/`.
+2. Add one line to the `switch` in `push_routes.dart`, for example: `'invoice' || 'invoices' when id != null => InvoiceScreen(invoiceId: id),`
+
+`OrderScreen` and `ChatScreen` are placeholders. Replace their bodies with the real UI that loads the order or chat by its id.
+
+## Notification sound
+
+Notifications play a custom chime by default. The same file is in two places:
+- Android: `android/app/src/main/res/raw/chime.wav`
+- iOS: `ios/Runner/chime.wav` (added to the Runner target in Xcode)
+
+A sender can ask for the phone's standard sound instead for a single message:
+
+| Message type | Custom chime (default) | System sound |
+|---|---|---|
+| Notification, Android | `android.notification.channel_id: "chime_channel"` (or leave it out) | `android.notification.channel_id: "high_importance_channel"` |
+| Notification, iOS | `apns.payload.aps.sound: "chime.wav"` | `apns.payload.aps.sound: "default"` |
+| Data-only (both) | leave `sound` out | `data.sound: "default"` |
+
+Why the sound is set this way on each platform:
+- **Android 8+:** the sound belongs to a notification channel, and Android ignores a `sound` field on the message. The app creates two channels: `chime_channel` (the default, set in `AndroidManifest.xml`) and `high_importance_channel` (system sound). A channel's sound is locked once it exists on a device, so to change the sound later, give it a new channel id.
+- **iOS:** a notification plays no sound at all unless the message includes `aps.sound`. The Firebase console's "Sound" option sends `"default"`; backends must set it themselves.
+
+To use a different sound file:
+1. Add the file to both places.
+   - **Android:** `res/raw/`, with a lowercase name containing only letters, digits and `_`.
+   - **iOS:** `ios/Runner/`, and add it to the Runner target in Xcode. Use `.wav`, `.caf` or `.aiff`, under 30 seconds.
+2. Change `LocalNotifications.soundName`.
+3. Give `chimeChannel` a new id. Use the new id in `AndroidManifest.xml` (`default_notification_channel_id`) and in `tool/push/send_push.py`.
+4. Update `@raw/chime` in `android/app/src/main/res/raw/keep.xml`.
+
+Android only creates the channels when the app first runs. A notification-type message that arrives before the app has ever been opened falls back to Android's generic channel, which plays the system sound.
+
 ## Backend examples (FCM HTTP v1 `message` object)
 
-Notification message: same behaviour as the console.
+Notification message: same behaviour as the console, plus a screen to open and the custom sound.
 
 ```json
 {
   "token": "<device token>",
-  "notification": { "title": "Order shipped", "body": "Your order #7 is on its way" },
-  "data": { "route": "/orders/7" },
-  "android": { "notification": { "channel_id": "high_importance_channel" } }
+  "notification": { "title": "Order shipped", "body": "Your order #42 is on its way" },
+  "data": { "route": "/orders/42" },
+  "android": { "notification": { "channel_id": "chime_channel" } },
+  "apns": { "payload": { "aps": { "sound": "chime.wav" } } }
 }
 ```
 
@@ -31,7 +84,7 @@ Data-only message: the app builds the notification itself.
 ```json
 {
   "token": "<device token>",
-  "data": { "title": "Order shipped", "body": "Your order #7 is on its way", "route": "/orders/7" },
+  "data": { "title": "New message", "body": "Avaz: are you there?", "screen": "chat", "id": "9" },
   "android": { "priority": "high" },
   "apns": {
     "headers": { "apns-push-type": "background", "apns-priority": "5" },
@@ -55,13 +108,18 @@ tool/push/get_token.sh ios
 
 # 2. Send through FCM (Android, or iOS once the APNs key is uploaded)
 python3 tool/push/send_push.py --token "$(tool/push/get_token.sh android)"
-python3 tool/push/send_push.py --token "$(tool/push/get_token.sh android)" --type data --data route=/chat/3
+python3 tool/push/send_push.py --token "$(tool/push/get_token.sh android)" --data route=/orders/42      # tap opens Order 42
+python3 tool/push/send_push.py --token "$(tool/push/get_token.sh android)" --type data --data screen=chat id=9
+python3 tool/push/send_push.py --token "$(tool/push/get_token.sh android)" --sound default             # system sound
 python3 tool/push/send_push.py --topic all --title "Hello everyone"
 python3 tool/push/send_push.py --token <token> --dry-run   # FCM validates, nothing is delivered
 
 # 3. iOS Simulator without Firebase/APNs (notification pushes only)
-python3 tool/push/ios_sim_push.py --title "Order shipped" --data route=/orders/7
+python3 tool/push/ios_sim_push.py --title "Order shipped" --data route=/orders/42
+python3 tool/push/ios_sim_push.py --data screen=chat id=9 --sound default
 ```
+
+Both senders play the custom chime unless you pass `--sound default`.
 
 `send_push.py` signs in with your Firebase CLI login. Pass `--service-account path/to/key.json` to sign in the way a backend does instead. It prints the exact JSON it sends, which your backend can copy.
 

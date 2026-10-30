@@ -10,12 +10,27 @@ import 'push_message.dart';
 class LocalNotifications {
   LocalNotifications._();
 
-  /// Must match `default_notification_channel_id` in AndroidManifest.xml so
-  /// console/backend notifications land in the same high-importance channel.
-  static const channel = AndroidNotificationChannel(
-    'high_importance_channel',
-    'Important notifications',
+  /// Custom notification sound, bundled as
+  /// android/app/src/main/res/raw/chime.wav and ios/Runner/chime.wav.
+  static const soundName = 'chime';
+
+  /// Default channel: plays the chime. Must match
+  /// `default_notification_channel_id` in AndroidManifest.xml so pushes drawn
+  /// by Android itself use it too. Android 8+ fixes a channel's sound when it
+  /// is first created, so a different sound needs a new channel id.
+  static const chimeChannel = AndroidNotificationChannel(
+    'chime_channel',
+    'Notifications',
     description: 'Push notifications from the server.',
+    importance: Importance.high,
+    sound: RawResourceAndroidNotificationSound(soundName),
+  );
+
+  /// Same, with the phone's standard notification sound.
+  static const systemSoundChannel = AndroidNotificationChannel(
+    'high_importance_channel',
+    'Notifications (system sound)',
+    description: 'Push notifications that use the standard sound.',
     importance: Importance.high,
   );
 
@@ -45,18 +60,30 @@ class LocalNotifications {
       onDidReceiveNotificationResponse: onTap,
     );
 
-    await plugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(channel);
+    final android = plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    await android?.createNotificationChannel(chimeChannel);
+    await android?.createNotificationChannel(systemSoundChannel);
 
     _initialized = true;
   }
+
+  /// Senders choose the system sound per message: data-only pushes with
+  /// `sound: default`, notification pushes with
+  /// `android.notification.channel_id: high_importance_channel` (Android
+  /// ignores their `sound` field and plays the channel's). Everything else
+  /// gets the chime.
+  static bool _usesSystemSound(PushMessage message) => message.type == PushPayloadType.notification
+      ? message.androidChannelId == systemSoundChannel.id
+      : message.sound == 'default';
 
   static Future<void> show(PushMessage message) async {
     if (!message.hasContent) {
       debugPrint('[push] nothing to display for $message');
       return;
     }
+
+    final systemSound = _usesSystemSound(message);
+    final channel = systemSound ? systemSoundChannel : chimeChannel;
 
     await plugin.show(
       id: (message.id ?? DateTime.now().toIso8601String()).hashCode,
@@ -70,14 +97,17 @@ class LocalNotifications {
           channelDescription: channel.description,
           importance: Importance.high,
           priority: Priority.high,
+          sound: channel.sound,
           icon: _androidIcon,
           color: accentColor,
           styleInformation: BigTextStyleInformation(message.body ?? ''),
         ),
-        iOS: const DarwinNotificationDetails(
+        iOS: DarwinNotificationDetails(
           presentAlert: true,
           presentBadge: true,
           presentSound: true,
+          // null = the system sound; otherwise a file in the app bundle.
+          sound: systemSound ? null : '$soundName.wav',
         ),
       ),
     );

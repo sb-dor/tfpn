@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 
 import 'firebase_options.dart';
 import 'notifications/push_notification_service.dart';
+import 'notifications/push_routes.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -48,11 +49,11 @@ class _PushHomePageState extends State<PushHomePage> {
   @override
   void initState() {
     super.initState();
-    _tapSub = _push.taps.listen(_openDetails);
+    _tapSub = _push.taps.listen(_openFromTap);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final launchEvent = _push.consumeLaunchEvent();
-      if (launchEvent != null) _openDetails(launchEvent);
+      if (launchEvent != null) _openFromTap(launchEvent);
     });
   }
 
@@ -62,12 +63,18 @@ class _PushHomePageState extends State<PushHomePage> {
     super.dispose();
   }
 
-  void _openDetails(PushEvent event) {
-    // Replace with real routing, e.g. based on `event.message.route`.
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => PushDetailsPage(event: event)),
-    );
+  /// A tapped notification opens the screen its payload points at (see
+  /// push_routes.dart), or the raw details page when it points nowhere known.
+  void _openFromTap(PushEvent event) {
+    Navigator.of(context).push(routeForPush(event) ?? _detailsRoute(event));
   }
+
+  void _openDetails(PushEvent event) {
+    Navigator.of(context).push(_detailsRoute(event));
+  }
+
+  Route<void> _detailsRoute(PushEvent event) =>
+      MaterialPageRoute<void>(builder: (_) => PushDetailsPage(event: event));
 
   @override
   Widget build(BuildContext context) {

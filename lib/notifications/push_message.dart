@@ -21,6 +21,8 @@ class PushMessage {
     this.title,
     this.body,
     this.imageUrl,
+    this.sound,
+    this.androidChannelId,
     this.data = const {},
   });
 
@@ -30,13 +32,32 @@ class PushMessage {
   final String? body;
   final String? imageUrl;
 
+  /// Sound the sender asked for: data `sound`, or the notification block's
+  /// Android/APNs sound. `default` means the system sound.
+  final String? sound;
+
+  /// Android channel the sender picked (`android.notification.channel_id`).
+  final String? androidChannelId;
+
   /// Custom key/value pairs (console "Additional options" or backend `data`).
   final Map<String, dynamic> data;
 
   bool get hasContent => (title?.isNotEmpty ?? false) || (body?.isNotEmpty ?? false);
 
-  /// Optional deep link / route the backend wants opened on tap.
-  String? get route => _string(data, const ['route', 'screen', 'deeplink', 'link', 'url']);
+  /// Screen to open on tap, as a path such as `/orders/42`.
+  ///
+  /// Read from `route` (or `deeplink`/`link`/`url`; full links like
+  /// `myapp://orders/42` or `https://example.com/orders/42` work too), else
+  /// built from `screen` (or `type`) plus `id`: `screen=order, id=42`.
+  String? get route {
+    final link = _string(data, const ['route', 'deeplink', 'link', 'url']);
+    if (link != null) return _pathOf(link);
+
+    final screen = _string(data, const ['screen', 'type']);
+    if (screen == null) return null;
+    final id = _string(data, const ['id', 'entity_id']);
+    return id == null ? '/$screen' : '/$screen/$id';
+  }
 
   factory PushMessage.fromRemoteMessage(RemoteMessage message) {
     final data = _flattenData(message.data);
@@ -50,6 +71,8 @@ class PushMessage {
       imageUrl: notification?.android?.imageUrl ??
           notification?.apple?.imageUrl ??
           _string(data, const ['image', 'image_url', 'imageUrl', 'picture']),
+      sound: _string(data, const ['sound']) ?? notification?.android?.sound ?? notification?.apple?.sound?.name,
+      androidChannelId: notification?.android?.channelId,
       data: data,
     );
   }
@@ -107,6 +130,16 @@ Map<String, dynamic> _flattenData(Map<String, dynamic> raw) {
     }
   }
   return result;
+}
+
+/// `myapp://orders/42`, `https://example.com/orders/42`, `orders/42` and
+/// `/orders/42` all become `/orders/42`.
+String _pathOf(String link) {
+  final uri = Uri.tryParse(link.trim());
+  if (uri == null) return link;
+  final isWeb = uri.scheme.isEmpty || uri.scheme == 'http' || uri.scheme == 'https';
+  final path = isWeb ? uri.path : '/${uri.host}${uri.path}';
+  return path.startsWith('/') ? path : '/$path';
 }
 
 String? _string(Map<String, dynamic> data, List<String> keys) {
