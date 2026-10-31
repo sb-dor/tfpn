@@ -23,6 +23,7 @@ class PushMessage {
     this.imageUrl,
     this.sound,
     this.androidChannelId,
+    this.topic,
     this.data = const {},
   });
 
@@ -38,6 +39,10 @@ class PushMessage {
 
   /// Android channel the sender picked (`android.notification.channel_id`).
   final String? androidChannelId;
+
+  /// Topic the message was sent to (`news` for `"topic": "news"`), or null
+  /// when it was sent straight to this device's token.
+  final String? topic;
 
   /// Custom key/value pairs (console "Additional options" or backend `data`).
   final Map<String, dynamic> data;
@@ -73,6 +78,7 @@ class PushMessage {
           _string(data, const ['image', 'image_url', 'imageUrl', 'picture']),
       sound: _string(data, const ['sound']) ?? notification?.android?.sound ?? notification?.apple?.sound?.name,
       androidChannelId: notification?.android?.channelId,
+      topic: _topicOf(message.from),
       data: data,
     );
   }
@@ -84,6 +90,7 @@ class PushMessage {
         'title': title,
         'body': body,
         'imageUrl': imageUrl,
+        'topic': topic,
         'data': data,
       });
 
@@ -97,6 +104,7 @@ class PushMessage {
         title: json['title'] as String?,
         body: json['body'] as String?,
         imageUrl: json['imageUrl'] as String?,
+        topic: json['topic'] as String?,
         data: Map<String, dynamic>.from(json['data'] as Map? ?? const {}),
       );
     } catch (_) {
@@ -105,7 +113,8 @@ class PushMessage {
   }
 
   @override
-  String toString() => 'PushMessage(type: ${type.name}, id: $id, title: $title, body: $body, data: $data)';
+  String toString() =>
+      'PushMessage(type: ${type.name}, id: $id, title: $title, body: $body, topic: $topic, data: $data)';
 }
 
 /// Keys some backends use to wrap the real content as a JSON string, e.g.
@@ -130,6 +139,13 @@ Map<String, dynamic> _flattenData(Map<String, dynamic> raw) {
     }
   }
   return result;
+}
+
+/// FCM sets `from` to `/topics/<name>` for topic messages, and to the
+/// sender id for messages sent to a token.
+String? _topicOf(String? from) {
+  const prefix = '/topics/';
+  return from != null && from.startsWith(prefix) ? from.substring(prefix.length) : null;
 }
 
 /// `myapp://orders/42`, `https://example.com/orders/42`, `orders/42` and

@@ -14,6 +14,8 @@ Examples:
   python3 tool/push/send_push.py --token <FCM token> --type data --data screen=chat id=9
   python3 tool/push/send_push.py --token <FCM token> --sound default
   python3 tool/push/send_push.py --topic all --title "Hello everyone"
+  python3 tool/push/send_push.py --topic news --title "New feature" --data route=/orders/42
+  python3 tool/push/send_push.py --condition "'news' in topics || 'offers' in topics"
   python3 tool/push/send_push.py --token <FCM token> --dry-run
 """
 import argparse
@@ -72,7 +74,8 @@ def parse_args():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     target = p.add_mutually_exclusive_group(required=True)
     target.add_argument("--token", help="device FCM token (shown in the app and in its logs)")
-    target.add_argument("--topic", help="send to a topic instead, e.g. 'all'")
+    target.add_argument("--topic", help="send to every device subscribed to a topic, e.g. 'news'")
+    target.add_argument("--condition", help="send to a mix of topics, e.g. \"'news' in topics || 'offers' in topics\"")
     p.add_argument("--type", choices=["notification", "data"], default="notification",
                    help="notification = like the Firebase console; data = data-only, like many backends")
     p.add_argument("--title", default="Test push")
@@ -97,7 +100,12 @@ def build_message(args):
             sys.exit(f"--data expects KEY=VALUE, got '{pair}'")
         data[key] = value  # FCM data values must be strings
 
-    message = {"token": args.token} if args.token else {"topic": args.topic}
+    if args.token:
+        message = {"token": args.token}
+    elif args.topic:
+        message = {"topic": args.topic}
+    else:
+        message = {"condition": args.condition}
     if args.type == "notification":
         message["notification"] = {"title": args.title, "body": body}
         # Android 8+ plays the channel's sound; iOS plays aps.sound (no sound if omitted).

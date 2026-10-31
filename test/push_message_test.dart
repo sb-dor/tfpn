@@ -87,6 +87,7 @@ void main() {
       id: 'abc',
       title: 'T',
       body: 'B',
+      topic: 'news',
       data: {'k': 'v'},
     );
 
@@ -95,6 +96,15 @@ void main() {
     expect(restored.type, original.type);
     expect(restored.id, 'abc');
     expect(restored.title, 'T');
+    expect(restored.topic, 'news');
     expect(restored.data, {'k': 'v'});
+  });
+
+  test('topic messages know their topic, token messages do not', () {
+    final fromTopic = PushMessage.fromRemoteMessage(const RemoteMessage(from: '/topics/news', data: {'title': 'Hi'}));
+    final fromToken = PushMessage.fromRemoteMessage(const RemoteMessage(from: '1234567890', data: {'title': 'Hi'}));
+
+    expect(fromTopic.topic, 'news');
+    expect(fromToken.topic, isNull);
   });
 }

@@ -1,6 +1,6 @@
 # Push notifications
 
-Code: `lib/notifications/`. The app logs the FCM token on startup (`[push] FCM token: ...`) and shows it on the home screen with a copy button. Every device also subscribes to the `all` topic.
+Code: `lib/notifications/`. The app logs the FCM token on startup (`[push] FCM token: ...`) and shows it on the home screen with a copy button. Every device also subscribes to the `all` topic, and users can opt into more topics on the home screen (see [Topics](#topics)).
 
 ## Who draws the notification
 
@@ -65,6 +65,19 @@ To use a different sound file:
 
 Android only creates the channels when the app first runs. A notification-type message that arrives before the app has ever been opened falls back to Android's generic channel, which plays the system sound.
 
+## Topics
+
+A topic sends one message to every device that subscribed to it, so the backend doesn't need anyone's token. Use it for announcements, news or offers that everyone opted into.
+
+- The app subscribes every device to `all`. The home screen has switches for the optional `news` and `offers` topics (`PushTopics.available` in `lib/notifications/push_topics.dart`).
+- A switch calls `FirebaseMessaging.instance.subscribeToTopic('news')` or `unsubscribeFromTopic('news')`. The choice is saved with `shared_preferences` and replayed on every start, because subscriptions belong to the FCM token and the app can't ask FCM for them.
+- Subscribing needs the token, so the switches stay disabled until it arrives. On iOS that also means an APNs token: without the Push Notifications capability and the APNs key, subscribing fails and the app shows the error.
+- A topic message's `from` is `/topics/news`, so `PushMessage.topic` is `news` and the Received list shows `topic news`.
+- Topic messages are handled like any other push: the same notification/data rules, sounds and tap routes apply.
+- A new subscription can take a few seconds (sometimes longer) before topic messages reach the device. FCM allows about 2000 subscriptions per app instance.
+
+To reach several topics at once, send a condition instead: `"condition": "'news' in topics || 'offers' in topics"` (up to five topics, `&&`, `||` and `!`). A device in both topics still gets the message once.
+
 ## Backend examples (FCM HTTP v1 `message` object)
 
 Notification message: same behaviour as the console, plus a screen to open and the custom sound.
@@ -93,6 +106,18 @@ Data-only message: the app builds the notification itself.
 }
 ```
 
+Topic message: swap `token` for `topic` (or `condition`), everything else stays the same.
+
+```json
+{
+  "topic": "news",
+  "notification": { "title": "New feature", "body": "Dark mode is here" },
+  "data": { "route": "/orders/42" },
+  "android": { "notification": { "channel_id": "chime_channel" } },
+  "apns": { "payload": { "aps": { "sound": "chime.wav" } } }
+}
+```
+
 All `data` values must be strings.
 
 iOS limits for data-only messages: iOS throttles silent pushes and does not deliver them at all after the user force-quits the app from the app switcher. If a message has to show up reliably on iOS, send a `notification` message.
@@ -112,6 +137,8 @@ python3 tool/push/send_push.py --token "$(tool/push/get_token.sh android)" --dat
 python3 tool/push/send_push.py --token "$(tool/push/get_token.sh android)" --type data --data screen=chat id=9
 python3 tool/push/send_push.py --token "$(tool/push/get_token.sh android)" --sound default             # system sound
 python3 tool/push/send_push.py --topic all --title "Hello everyone"
+python3 tool/push/send_push.py --topic news --title "New feature" --data route=/orders/42   # only News subscribers
+python3 tool/push/send_push.py --condition "'news' in topics || 'offers' in topics"
 python3 tool/push/send_push.py --token <token> --dry-run   # FCM validates, nothing is delivered
 
 # 3. iOS Simulator without Firebase/APNs (notification pushes only)

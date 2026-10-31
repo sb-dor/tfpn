@@ -8,6 +8,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../firebase_options.dart';
 import 'local_notifications.dart';
 import 'push_message.dart';
+import 'push_topics.dart';
 
 /// How the app got hold of a push.
 enum PushEventSource {
@@ -57,6 +58,10 @@ class PushNotificationService {
 
   final _messaging = FirebaseMessaging.instance;
   final _taps = StreamController<PushEvent>.broadcast();
+  late final topics = PushTopics(
+    subscribe: _messaging.subscribeToTopic,
+    unsubscribe: _messaging.unsubscribeFromTopic,
+  );
   PushEvent? _launchEvent;
 
   final token = ValueNotifier<String?>(null);
@@ -79,9 +84,11 @@ class PushNotificationService {
     );
 
     FirebaseMessaging.onMessage.listen(_onForegroundMessage);
+
     FirebaseMessaging.onMessageOpenedApp.listen(
       (message) => _onTap(PushMessage.fromRemoteMessage(message), PushEventSource.opened),
     );
+    
     // getToken/onTokenRefresh are deprecated in favour of register()/onRegistered,
     // but those return a Firebase Installation ID. Admin SDK backends
     // (Laravel, Go, ...) still send to this registration token.
@@ -122,7 +129,9 @@ class PushNotificationService {
     try {
       // ignore: deprecated_member_use
       _onToken(await _messaging.getToken());
+      // Topics need a token (and on iOS an APNs token), so subscribe after it.
       await _messaging.subscribeToTopic(broadcastTopic);
+      await topics.restore();
     } catch (e) {
       debugPrint('[push] token error: $e');
     }

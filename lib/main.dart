@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'firebase_options.dart';
 import 'notifications/push_notification_service.dart';
 import 'notifications/push_routes.dart';
+import 'notifications/push_topics.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -113,6 +114,9 @@ class _PushHomePageState extends State<PushHomePage> {
             ),
           ),
           const SizedBox(height: 12),
+          Text('Topics', style: Theme.of(context).textTheme.titleMedium),
+          TopicsCard(push: _push),
+          const SizedBox(height: 12),
           Text('Received', style: Theme.of(context).textTheme.titleMedium),
           ValueListenableBuilder(
             valueListenable: _push.events,
@@ -126,7 +130,11 @@ class _PushHomePageState extends State<PushHomePage> {
                       for (final event in events)
                         ListTile(
                           title: Text(event.message.title ?? '(no title)'),
-                          subtitle: Text('${event.source.name} · ${event.message.type.name}'),
+                          subtitle: Text([
+                            event.source.name,
+                            event.message.type.name,
+                            if (event.message.topic != null) 'topic ${event.message.topic}',
+                          ].join(' · ')),
                           trailing: Text(TimeOfDay.fromDateTime(event.at).format(context)),
                           onTap: () => _openDetails(event),
                         ),
@@ -134,6 +142,51 @@ class _PushHomePageState extends State<PushHomePage> {
                   ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Opt in and out of [PushTopics.available]. Disabled until the FCM token
+/// exists, because a subscription belongs to the token.
+class TopicsCard extends StatelessWidget {
+  const TopicsCard({super.key, required this.push});
+
+  final PushNotificationService push;
+
+  Future<void> _toggle(BuildContext context, PushTopic topic, bool on) async {
+    try {
+      await push.topics.setSubscribed(topic.name, on);
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not ${on ? 'subscribe to' : 'unsubscribe from'} ${topic.label}: $e')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final topics = push.topics;
+    return ValueListenableBuilder(
+      valueListenable: push.token,
+      builder: (context, token, _) => ListenableBuilder(
+        listenable: Listenable.merge([topics.subscribed, topics.pending]),
+        builder: (context, _) => Card(
+          child: Column(
+            children: [
+              for (final topic in PushTopics.available)
+                SwitchListTile(
+                  title: Text(topic.label),
+                  subtitle: Text(topic.description),
+                  value: topics.subscribed.value.contains(topic.name),
+                  onChanged: token == null || topics.pending.value.contains(topic.name)
+                      ? null
+                      : (on) => _toggle(context, topic, on),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -156,6 +209,7 @@ class PushDetailsPage extends StatelessWidget {
           const Divider(height: 32),
           Text('Source: ${event.source.name}'),
           Text('Payload type: ${message.type.name}'),
+          if (message.topic != null) Text('Topic: ${message.topic}'),
           if (message.route != null) Text('Route: ${message.route}'),
           const SizedBox(height: 12),
           SelectableText(const JsonEncoder.withIndent('  ').convert(message.data)),
