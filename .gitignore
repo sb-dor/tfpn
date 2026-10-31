@@ -63,3 +63,6 @@ serviceAccountKey*.json
 *.p8
 .env
 .env.*
+
+# Tutorial video tools, kept local
+/tool/video/
